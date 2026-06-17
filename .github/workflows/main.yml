@@ -1,0 +1,39 @@
+name: Windows 11 Free RDP
+
+on: 
+  workflow_dispatch: # Isse aap manually RDP start kar sakte ho
+
+jobs:
+  build:
+    runs-on: windows-latest # GitHub Actions ka latest Windows environment
+
+    steps:
+    - name: Download and Install Tailscale
+      run: |
+        Invoke-WebRequest -Uri https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi -OutFile tailscale-setup.msi
+        Start-Process msiexec.exe -ArgumentList '/i tailscale-setup.msi /qn /norestart' -Wait
+
+    - name: Connect to Tailscale
+      env:
+        TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      run: |
+        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TAILSCALE_AUTH_KEY --accept-routes
+
+    - name: Enable Remote Desktop (RDP)
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+    - name: Set Password for Runner User
+      run: |
+        $Password = ConvertTo-SecureString "YourSecurePassword123!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+
+    - name: Keep Alive Loop (Max 6 Hours)
+      run: |
+        Write-Host "RDP is ready! Connect using your Tailscale IP."
+        for ($i = 1; $i -le 360; $i++) {
+          Start-Sleep -Seconds 60
+          Write-Host "Running... Minute $i"
+        }
+        
